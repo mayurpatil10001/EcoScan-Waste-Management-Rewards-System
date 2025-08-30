@@ -11,6 +11,7 @@ import qrcode
 from PIL import Image
 import io
 import base64
+from streamlit_qrcode_scanner import qrcode_scanner  # New import for live QR scanning
 
 # Configure Streamlit page
 st.set_page_config(
@@ -593,7 +594,7 @@ def dashboard():
             st.session_state.current_page = "QR Scanner"
             st.rerun()
 
-# Simple QR Scanner Page (Windows compatible)
+# Updated QR Scanner Page with Live Detection
 def qr_scanner_page():
     st.markdown("""
     <div class="scan-card">
@@ -615,14 +616,15 @@ def qr_scanner_page():
         </div>
         """, unsafe_allow_html=True)
     
-    # Enhanced instructions
+    # Enhanced instructions (updated to include live scanning)
     with st.expander("📖 How to Use QR Scanner", expanded=True):
         st.markdown("""
         <div style="background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%); 
                    padding: 1.5rem; border-radius: 15px; color: #2d3436;">
             <h4 style="margin-top: 0;">🎯 Step-by-Step Guide:</h4>
             <ol style="margin-bottom: 0;">
-                <li><strong>📸 Use Built-in Camera:</strong> Upload image or use sample QR codes</li>
+                <li><strong>📹 Live Camera:</strong> Allow camera access for real-time scanning (back camera preferred on mobile)</li>
+                <li><strong>📸 Upload Image:</strong> Alternatively, upload a QR code image</li>
                 <li><strong>🔍 QR Detection:</strong> System automatically processes valid waste QR codes</li>
                 <li><strong>💎 Earn Points:</strong> Points instantly added based on waste type and weight</li>
                 <li><strong>📊 Track Progress:</strong> View updated stats in real-time</li>
@@ -633,6 +635,25 @@ def qr_scanner_page():
             </div>
         </div>
         """, unsafe_allow_html=True)
+    
+    # New: Live Camera QR Scanner
+    st.markdown("### 📹 Live Camera Scanner")
+    st.info("Allow camera access. Point at QR code for automatic detection.")
+    qr_data = qrcode_scanner(key="live_qr_scanner")  # Live scanner component
+    if qr_data:
+        success, message = process_qr_waste(qr_data, st.session_state.current_user)
+        if success:
+            st.markdown(f"""
+            <div class="success-card">
+                <h3 style="margin: 0;">🎉 Live Scan Successful!</h3>
+                <p style="margin: 0.5rem 0 0 0;">{message}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.balloons()
+            time.sleep(2)
+            st.rerun()  # Rerun to update stats immediately
+        else:
+            st.error(message)
     
     # Camera upload option
     st.markdown("### 📸 Upload QR Code Image")
@@ -649,9 +670,25 @@ def qr_scanner_page():
             if len(open_cv_image.shape) == 3:
                 open_cv_image = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2BGR)
             
-            # For demo purposes, we'll use manual detection
-            # In production, you'd use a proper QR detection library
-            st.info("🔍 For this demo, please manually enter the QR code data below")
+            # Use OpenCV QR detector
+            detector = cv2.QRCodeDetector()
+            qr_data, _, _ = detector.detectAndDecode(open_cv_image)
+            if qr_data:
+                success, message = process_qr_waste(qr_data, st.session_state.current_user)
+                if success:
+                    st.markdown(f"""
+                    <div class="success-card">
+                        <h3 style="margin: 0;">🎉 Upload Scan Successful!</h3>
+                        <p style="margin: 0.5rem 0 0 0;">{message}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.balloons()
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error(message)
+            else:
+                st.warning("No QR code detected in image. Try manual entry.")
             
         except Exception as e:
             st.error(f"❌ Error processing image: {str(e)}")
